@@ -1,0 +1,38 @@
+name: Repack Home Assistant (gzip)
+
+on:
+  schedule:
+    # Runs every Thursday at 04:00 UTC (Home Assistant core updates usually drop on Wednesdays)
+    - cron: '0 4 * * 4'
+  workflow_dispatch: # Allows manual trigger from the UI
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  repack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Skopeo
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y skopeo
+
+      - name: Convert & Push Stable Image
+        run: |
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          skopeo copy \
+            --override-arch amd64 \
+            --override-os linux \
+            --dest-compress-format gzip \
+            --dest-force-compress-format \
+            docker://ghcr.io/home-assistant/home-assistant:stable \
+            docker://ghcr.io/${REPO_OWNER}/home-assistant:stable
